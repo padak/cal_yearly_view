@@ -25,7 +25,9 @@ dist-ssr
 *.sw?
 
 # Environment variables
+.env
 backend/.env
+frontend/.env
 
 # Python
 __pycache__/
