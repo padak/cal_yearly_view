@@ -15,6 +15,17 @@ A full-stack application that displays a yearly view of your Google Calendar eve
 - Modern and responsive UI
 - Secure backend handling of Google Calendar API
 
+## Running Tests
+
+### Using Docker (Recommended)
+
+Once you have the Docker containers running, you can run the backend tests using:
+```bash
+docker exec -e PYTHONPATH=/app calendar-backend pytest
+```
+
+This will run all tests and show the test coverage report. The tests are run inside the Docker container, so you don't need a local Python environment.
+
 ## Deployment Options
 
 ### 1. Docker Deployment (Recommended)
