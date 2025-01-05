@@ -23,8 +23,8 @@ The easiest way to run the application is using Docker:
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd year-calendar-view
+git clone https://github.com/padak/cal_yearly_view.git
+cd cal_yearly_view
 ```
 
 2. Create a `.env` file in the backend directory with your credentials:
