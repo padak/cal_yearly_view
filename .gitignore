@@ -25,7 +25,6 @@ dist-ssr
 *.sw?
 
 # Environment variables
-.env
 backend/.env
 
 # Python
@@ -50,7 +49,6 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-.env
 .venv
 env/
 venv/
