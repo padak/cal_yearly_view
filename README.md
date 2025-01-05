@@ -7,10 +7,45 @@ A full-stack application that displays a yearly view of your Google Calendar eve
 - Google OAuth2 authentication
 - Select from available Google Calendars
 - Yearly calendar view with event indicators
+- Color-coded events for different company meetings:
+  - Townhall (Yellow)
+  - Monthly Business Planning (Green)
+  - Leadership AMA (Red)
+  - Other events (Blue)
 - Modern and responsive UI
 - Secure backend handling of Google Calendar API
 
-## Backend Setup
+## Deployment Options
+
+### 1. Docker Deployment (Recommended)
+
+The easiest way to run the application is using Docker:
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd year-calendar-view
+```
+
+2. Create a `.env` file in the backend directory with your credentials:
+```
+GOOGLE_CLIENT_ID=your_client_id_here
+GOOGLE_CLIENT_SECRET=your_client_secret_here
+SECRET_KEY=your_secret_key_here
+```
+
+3. Build and run with Docker Compose:
+```bash
+docker-compose up --build
+```
+
+The application will be available at:
+- Frontend: http://localhost:5173
+- Backend: http://localhost:8000
+
+### 2. Manual Setup
+
+#### Backend Setup
 
 1. Navigate to the backend directory:
 ```bash
@@ -28,19 +63,12 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the backend directory with your credentials:
-```
-GOOGLE_CLIENT_ID=your_client_id_here
-GOOGLE_CLIENT_SECRET=your_client_secret_here
-SECRET_KEY=your_secret_key_here
-```
-
-5. Start the backend server:
+4. Start the backend server:
 ```bash
 uvicorn app.main:app --reload
 ```
 
-## Frontend Setup
+#### Frontend Setup
 
 1. Navigate to the frontend directory:
 ```bash
@@ -65,9 +93,28 @@ npm run dev
 4. Create OAuth 2.0 credentials (Web application)
 5. Add authorized JavaScript origins:
    - `http://localhost:5173`
-   - `http://localhost:5174`
 6. Add authorized redirect URIs:
    - `http://localhost:8000/api/v1/auth/callback`
+
+## Project Structure
+
+```
+.
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   ├── core/
+│   │   ├── models/
+│   │   └── services/
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   ├── Dockerfile
+│   └── package.json
+└── docker-compose.yml
+```
 
 ## Technologies Used
 
@@ -85,27 +132,14 @@ npm run dev
 - Styled Components
 - date-fns
 
-## Development
-
-The project is structured as a monorepo with separate backend and frontend directories:
-
-```
-.
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── core/
-│   │   ├── models/
-│   │   └── services/
-│   └── requirements.txt
-└── frontend/
-    ├── src/
-    ├── public/
-    └── package.json
-```
-
 ## API Documentation
 
 Once the backend is running, visit:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
+
+## Development Notes
+
+- The application uses environment variables for configuration. Make sure to set up your `.env` file correctly.
+- For development, you can run the backend and frontend separately.
+- For production, use the Docker deployment option for better consistency and ease of deployment.
