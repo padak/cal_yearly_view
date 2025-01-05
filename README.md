@@ -17,19 +17,22 @@ A full-stack application that displays a yearly view of your Google Calendar eve
 
 ## Environment Setup
 
-Before running the application, you need to set up your environment:
+Before running the application, you need to set up your environment variables:
 
-1. Set up frontend environment:
+1. Set up backend environment:
+```bash
+cp backend/.env.example backend/.env
+```
+Then edit `backend/.env` to add:
+- Your Google OAuth credentials (client ID and secret)
+- A secure random string for the SECRET_KEY
+- Other configuration options as needed
+
+2. Set up frontend environment:
 ```bash
 cp frontend/.env.example frontend/.env
 ```
 Then edit `frontend/.env` to add your Google OAuth Client ID.
-
-2. Set up backend environment:
-```bash
-cp backend/.env.example backend/.env
-```
-Then edit `backend/.env` to add your Google OAuth credentials and a secure random string for the SECRET_KEY.
 
 ## Running Tests
 
@@ -54,12 +57,7 @@ git clone https://github.com/padak/cal_yearly_view.git
 cd cal_yearly_view
 ```
 
-2. Create a `.env` file in the backend directory with your credentials:
-```
-GOOGLE_CLIENT_ID=your_client_id_here
-GOOGLE_CLIENT_SECRET=your_client_secret_here
-SECRET_KEY=your_secret_key_here
-```
+2. Set up environment files as described in the Environment Setup section above.
 
 3. Build and run with Docker Compose:
 ```bash
