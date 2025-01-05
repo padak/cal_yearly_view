@@ -17,14 +17,19 @@ A full-stack application that displays a yearly view of your Google Calendar eve
 
 ## Environment Setup
 
-Before running the application, you need to set up your backend environment:
+Before running the application, you need to set up your environment:
 
-1. Copy the example environment file:
+1. Set up frontend environment:
+```bash
+cp frontend/.env.example frontend/.env
+```
+Then edit `frontend/.env` to add your Google OAuth Client ID.
+
+2. Set up backend environment:
 ```bash
 cp backend/.env.example backend/.env
 ```
-
-2. Edit `backend/.env` to add your Google OAuth credentials and a secure random string for the SECRET_KEY.
+Then edit `backend/.env` to add your Google OAuth credentials and a secure random string for the SECRET_KEY.
 
 ## Running Tests
 
