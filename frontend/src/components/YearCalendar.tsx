@@ -241,6 +241,12 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
         const timeMin = new Date(year, 0, 1).toISOString();
         const timeMax = new Date(year, 11, 31, 23, 59, 59).toISOString();
         const eventsList = await fetchEvents(calendarId, timeMin, timeMax);
+        console.log('Received events:', eventsList);
+        
+        if (!Array.isArray(eventsList)) {
+          console.error('Events list is not an array:', eventsList);
+          return;
+        }
         
         // Create a map of dates with events
         const eventsByDate = eventsList.reduce((acc: { [date: string]: CalendarEvent[] }, event: CalendarEvent) => {

@@ -76,12 +76,25 @@ export const fetchEvents = async (calendarId: string, timeMin: string, timeMax: 
   if (!token) throw new Error('Not authenticated');
 
   try {
+    console.log('Fetching events with params:', {
+      calendarId,
+      timeMin,
+      timeMax,
+      year: new Date(timeMin).getFullYear(),
+    });
+
     const response = await axiosInstance.get(`/calendars/${calendarId}/events`, {
       params: {
         token,
         year: new Date(timeMin).getFullYear(),
       },
     });
+
+    console.log('Events response:', response.data);
+    if (!Array.isArray(response.data)) {
+      console.error('Response data is not an array:', response.data);
+      return [];
+    }
 
     return response.data;
   } catch (error: any) {
