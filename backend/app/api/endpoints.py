@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from typing import Dict, List
 import json
 from datetime import datetime
 from jose import JWTError, jwt
+from oauthlib.oauth2.rfc6749.errors import OAuth2Error
 
 from ..core.config import get_settings
 from ..services.google_calendar import (
@@ -39,40 +40,66 @@ async def get_auth_url():
 
 
 @router.get("/auth/callback")
-async def auth_callback(request: Request, code: str):
+async def auth_callback(code: str):
     """Handle the OAuth callback and exchange code for tokens."""
-    flow = create_oauth_flow()
-    flow.fetch_token(code=code)
-    credentials = flow.credentials
+    try:
+        flow = create_oauth_flow()
+        flow.fetch_token(code=code)
+        credentials = flow.credentials
 
-    # Create a token containing the credentials
-    token_data = {
-        "token": credentials.token,
-        "refresh_token": credentials.refresh_token,
-        "token_uri": credentials.token_uri,
-        "scopes": credentials.scopes,
-    }
-    access_token = create_access_token(token_data)
+        # Create a token containing the credentials
+        token_data = {
+            "token": credentials.token,
+            "refresh_token": credentials.refresh_token,
+            "token_uri": credentials.token_uri,
+            "scopes": credentials.scopes,
+        }
+        access_token = create_access_token(token_data)
 
-    # Redirect to frontend with the token
-    return RedirectResponse(
-        url=f"{settings.BACKEND_CORS_ORIGINS[0]}?token={access_token}"
-    )
+        # Redirect to frontend with the token
+        return RedirectResponse(
+            url=f"{settings.BACKEND_CORS_ORIGINS[0]}?token={access_token}",
+            status_code=307
+        )
+    except OAuth2Error as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
 
 
 @router.get("/calendars")
 async def get_calendars(token: str) -> List[Dict]:
     """Get list of available calendars."""
-    credentials = get_credentials_from_token(token)
-    return await list_calendars(credentials)
+    try:
+        credentials = get_credentials_from_token(token)
+        return await list_calendars(credentials)
+    except HTTPException:
+        raise
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 
 @router.get("/calendars/{calendar_id}/events")
-async def get_events(
-    calendar_id: str, year: int, token: str
-) -> List[Dict]:
+async def get_events(calendar_id: str, year: int, token: str) -> List[Dict]:
     """Get events for a specific calendar and year."""
-    credentials = get_credentials_from_token(token)
-    time_min = datetime(year, 1, 1).isoformat() + "Z"
-    time_max = datetime(year, 12, 31, 23, 59, 59).isoformat() + "Z"
-    return await get_calendar_events(credentials, calendar_id, time_min, time_max) 
+    try:
+        credentials = get_credentials_from_token(token)
+        time_min = datetime(year, 1, 1).isoformat() + "Z"
+        time_max = datetime(year, 12, 31, 23, 59, 59).isoformat() + "Z"
+        return await get_calendar_events(credentials, calendar_id, time_min, time_max)
+    except HTTPException:
+        raise
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        ) 
