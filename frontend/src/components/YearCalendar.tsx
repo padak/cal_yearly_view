@@ -1,51 +1,62 @@
 import { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { format, startOfYear, endOfYear, eachMonthOfInterval, eachDayOfInterval, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth } from 'date-fns';
 import { fetchEvents } from '../services/googleCalendar';
 
 const CalendarContainer = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
-  margin-top: 20px;
+  padding: 20px;
 `;
 
 const MonthContainer = styled.div`
-  border: 1px solid #ddd;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
   padding: 10px;
 `;
 
-const MonthTitle = styled.h3`
+const MonthTitle = styled.h2`
+  font-size: 1.2em;
+  color: #333;
   margin: 0 0 10px 0;
   text-align: center;
 `;
 
-const WeekDays = styled.div`
+const WeekdayHeader = styled.div`
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  text-align: center;
-  font-weight: bold;
   margin-bottom: 5px;
+  font-weight: bold;
+  font-size: 0.8em;
+  color: #666;
+  text-align: center;
 `;
 
-const Days = styled.div`
+const DaysGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
 `;
 
-const Day = styled.div<{ isCurrentMonth: boolean; hasEvents: boolean }>`
+interface DayProps {
+  $isCurrentMonth: boolean;
+  $hasEvents: boolean;
+}
+
+const Day = styled.div<DayProps>`
   aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  background-color: ${props => props.hasEvents ? '#e3f2fd' : 'transparent'};
-  color: ${props => props.isCurrentMonth ? '#333' : '#ccc'};
-  position: relative;
+  font-size: 0.9em;
+  color: ${props => props.$isCurrentMonth ? '#333' : '#ccc'};
+  background-color: ${props => props.$hasEvents ? '#e3f2fd' : 'transparent'};
+  border-radius: 4px;
+  cursor: ${props => props.$hasEvents ? 'pointer' : 'default'};
 
   &:hover {
-    background-color: ${props => props.hasEvents ? '#bbdefb' : '#f5f5f5'};
+    background-color: ${props => props.$hasEvents ? '#bbdefb' : 'transparent'};
   }
 `;
 
@@ -54,82 +65,81 @@ interface YearCalendarProps {
   year: number;
 }
 
-interface Event {
-  start: { date?: string; dateTime?: string };
-  end: { date?: string; dateTime?: string };
-  summary: string;
-}
-
-const YearCalendar = ({ calendarId, year }: YearCalendarProps) => {
-  const [events, setEvents] = useState<Event[]>([]);
+function YearCalendar({ calendarId, year }: YearCalendarProps) {
+  const [events, setEvents] = useState<{ [date: string]: boolean }>({});
 
   useEffect(() => {
-    const fetchYearEvents = async () => {
-      const yearStart = startOfYear(new Date(year, 0));
-      const yearEnd = endOfYear(new Date(year, 0));
-      
+    const loadEvents = async () => {
       try {
-        const response = await fetchEvents(
-          calendarId,
-          yearStart.toISOString(),
-          yearEnd.toISOString()
-        );
-        setEvents(response.items || []);
+        const timeMin = new Date(year, 0, 1).toISOString();
+        const timeMax = new Date(year, 11, 31, 23, 59, 59).toISOString();
+        const eventsList = await fetchEvents(calendarId, timeMin, timeMax);
+        
+        // Create a map of dates with events
+        const eventDates = eventsList.reduce((acc: { [date: string]: boolean }, event: any) => {
+          const date = event.start.date || event.start.dateTime.split('T')[0];
+          acc[date] = true;
+          return acc;
+        }, {});
+        
+        setEvents(eventDates);
       } catch (error) {
-        console.error('Error fetching events:', error);
+        console.error('Error loading events:', error);
       }
     };
 
-    fetchYearEvents();
+    loadEvents();
   }, [calendarId, year]);
 
-  const months = eachMonthOfInterval({
-    start: new Date(year, 0),
-    end: new Date(year, 11)
-  });
+  const renderMonth = (monthIndex: number) => {
+    const monthStart = startOfMonth(new Date(year, monthIndex));
+    const monthEnd = endOfMonth(monthStart);
+    const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-  const hasEventsOnDay = (date: Date) => {
-    return events.some(event => {
-      const eventStart = new Date(event.start.dateTime || event.start.date || '');
-      return isSameDay(date, eventStart);
-    });
+    // Add padding days at the start
+    const firstDayOfWeek = monthStart.getDay();
+    const paddingDays = Array(firstDayOfWeek).fill(null);
+
+    // Add padding days at the end
+    const lastDayOfWeek = monthEnd.getDay();
+    const endPaddingDays = Array(6 - lastDayOfWeek).fill(null);
+
+    return (
+      <MonthContainer key={monthIndex}>
+        <MonthTitle>{format(monthStart, 'MMMM')}</MonthTitle>
+        <WeekdayHeader>
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day}>{day}</div>
+          ))}
+        </WeekdayHeader>
+        <DaysGrid>
+          {[...paddingDays, ...days, ...endPaddingDays].map((day, index) => {
+            if (!day) {
+              return <Day key={index} $isCurrentMonth={false} $hasEvents={false} />;
+            }
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const hasEvents = events[dateStr] || false;
+            return (
+              <Day
+                key={dateStr}
+                $isCurrentMonth={isSameMonth(day, monthStart)}
+                $hasEvents={hasEvents}
+                title={hasEvents ? 'Events on this day' : undefined}
+              >
+                {format(day, 'd')}
+              </Day>
+            );
+          })}
+        </DaysGrid>
+      </MonthContainer>
+    );
   };
 
   return (
     <CalendarContainer>
-      {months.map(month => {
-        const monthStart = startOfMonth(month);
-        const monthEnd = endOfMonth(month);
-        const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-        const firstDayOfMonth = monthStart.getDay();
-
-        return (
-          <MonthContainer key={month.toString()}>
-            <MonthTitle>{format(month, 'MMMM')}</MonthTitle>
-            <WeekDays>
-              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                <div key={day}>{day}</div>
-              ))}
-            </WeekDays>
-            <Days>
-              {Array.from({ length: firstDayOfMonth }).map((_, index) => (
-                <Day key={`empty-${index}`} isCurrentMonth={false} hasEvents={false} />
-              ))}
-              {days.map(day => (
-                <Day
-                  key={day.toString()}
-                  isCurrentMonth={true}
-                  hasEvents={hasEventsOnDay(day)}
-                >
-                  {format(day, 'd')}
-                </Day>
-              ))}
-            </Days>
-          </MonthContainer>
-        );
-      })}
+      {Array.from({ length: 12 }, (_, i) => renderMonth(i))}
     </CalendarContainer>
   );
-};
+}
 
 export default YearCalendar; 

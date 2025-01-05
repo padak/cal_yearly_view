@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { GoogleOAuthProvider, GoogleLogin, googleLogout, CredentialResponse } from '@react-oauth/google';
 import styled from 'styled-components';
 import { format } from 'date-fns';
 import YearCalendar from './components/YearCalendar';
 import CalendarSelector from './components/CalendarSelector';
-import { fetchCalendarList, initializeGoogleApi } from './services/googleCalendar';
+import { getAuthUrl, handleCallback, initializeGoogleApi, fetchCalendarList } from './services/googleCalendar';
 
 const AppContainer = styled.div`
   max-width: 1200px;
@@ -31,6 +30,21 @@ const ErrorMessage = styled.div`
   border-radius: 4px;
 `;
 
+const LoginButton = styled.button`
+  padding: 10px 20px;
+  font-size: 16px;
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #357abd;
+  }
+`;
+
 function App() {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [calendars, setCalendars] = useState<gapi.client.calendar.CalendarListEntry[]>([]);
@@ -38,11 +52,40 @@ function App() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if we have a token on mount
-    const token = localStorage.getItem('googleToken');
-    if (token) {
-      setIsSignedIn(true);
-    }
+    const handleAuthentication = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+
+      try {
+        if (token) {
+          // Handle direct token from backend redirect
+          console.log('Received token from backend');
+          await handleLoginSuccess(token);
+        } else if (code && state) {
+          // Handle OAuth callback
+          console.log('Handling OAuth callback');
+          const newToken = await handleCallback(code, state);
+          await handleLoginSuccess(newToken);
+        } else {
+          // Check for stored token
+          console.log('Checking stored token');
+          const storedToken = localStorage.getItem('accessToken');
+          if (storedToken) {
+            setIsSignedIn(true);
+          }
+        }
+        // Clean up URL regardless of the path taken
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (error: any) {
+        console.error('Authentication error:', error);
+        setError('Failed to complete authentication. Please try again.');
+        handleLogout();
+      }
+    };
+
+    handleAuthentication();
   }, []);
 
   useEffect(() => {
@@ -55,8 +98,8 @@ function App() {
     try {
       setError(null);
       const calendarList = await fetchCalendarList();
-      if (calendarList.items && calendarList.items.length > 0) {
-        setCalendars(calendarList.items);
+      if (calendarList && calendarList.length > 0) {
+        setCalendars(calendarList);
       } else {
         setError('No calendars found. Make sure you have access to Google Calendar.');
       }
@@ -72,14 +115,10 @@ function App() {
     }
   };
 
-  const handleLoginSuccess = async (credentialResponse: CredentialResponse) => {
+  const handleLoginSuccess = async (token: string) => {
     try {
       setError(null);
-      if (!credentialResponse.credential) {
-        throw new Error('No credential received from Google');
-      }
-      console.log('Login successful, attempting to initialize API');
-      await initializeGoogleApi(credentialResponse.credential);
+      await initializeGoogleApi(token);
       setIsSignedIn(true);
     } catch (error: any) {
       console.error('Error initializing Google API:', error);
@@ -88,59 +127,55 @@ function App() {
     }
   };
 
+  const handleLogin = async () => {
+    try {
+      const authUrl = await getAuthUrl();
+      window.location.href = authUrl;
+    } catch (error: any) {
+      console.error('Error getting auth URL:', error);
+      setError('Failed to start login process. Please try again.');
+    }
+  };
+
   const handleLogout = () => {
-    googleLogout();
     setIsSignedIn(false);
     setCalendars([]);
     setSelectedCalendar(null);
     setError(null);
-    localStorage.removeItem('googleToken');
+    localStorage.removeItem('accessToken');
   };
 
   return (
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
-      <AppContainer>
-        <Header>
-          <Title>Year Calendar View</Title>
-          {isSignedIn ? (
-            <button onClick={handleLogout}>Sign Out</button>
-          ) : (
-            <GoogleLogin
-              onSuccess={handleLoginSuccess}
-              onError={() => {
-                console.error('Login failed');
-                setError('Login failed. Please try again.');
-              }}
-              useOneTap={false}
-              type="standard"
-              theme="filled_blue"
-              size="large"
-              text="continue_with"
-              shape="rectangular"
-              logo_alignment="center"
+    <AppContainer>
+      <Header>
+        <Title>Year Calendar View</Title>
+        {isSignedIn ? (
+          <button onClick={handleLogout}>Sign Out</button>
+        ) : (
+          <LoginButton onClick={handleLogin}>
+            Sign in with Google
+          </LoginButton>
+        )}
+      </Header>
+
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+
+      {isSignedIn && (
+        <>
+          <CalendarSelector
+            calendars={calendars}
+            selectedCalendar={selectedCalendar}
+            onSelectCalendar={setSelectedCalendar}
+          />
+          {selectedCalendar && (
+            <YearCalendar
+              calendarId={selectedCalendar}
+              year={new Date().getFullYear()}
             />
           )}
-        </Header>
-
-        {error && <ErrorMessage>{error}</ErrorMessage>}
-
-        {isSignedIn && (
-          <>
-            <CalendarSelector
-              calendars={calendars}
-              selectedCalendar={selectedCalendar}
-              onSelectCalendar={setSelectedCalendar}
-            />
-            {selectedCalendar && (
-              <YearCalendar
-                calendarId={selectedCalendar}
-                year={new Date().getFullYear()}
-              />
-            )}
-          </>
-        )}
-      </AppContainer>
-    </GoogleOAuthProvider>
+        </>
+      )}
+    </AppContainer>
   );
 }
 

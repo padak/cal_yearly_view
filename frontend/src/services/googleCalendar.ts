@@ -1,108 +1,94 @@
 import axios from 'axios';
 
-export const initializeGoogleApi = async (credential: string) => {
-  if (!credential) {
-    throw new Error('No credential provided');
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+const axiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+});
+
+export const getAuthUrl = async (): Promise<string> => {
+  try {
+    console.log('Getting auth URL from:', `${API_BASE_URL}/auth/url`);
+    const response = await axiosInstance.get('/auth/url');
+    return response.data.url;
+  } catch (error: any) {
+    console.error('Error getting auth URL:', {
+      message: error.message,
+      response: error.response?.data,
+      baseURL: API_BASE_URL,
+    });
+    throw error;
   }
-  console.log('Initializing with credential length:', credential.length);
-  localStorage.setItem('googleToken', credential);
 };
 
-const getAccessToken = () => {
-  const token = localStorage.getItem('googleToken');
-  if (!token) throw new Error('Not authenticated');
-  return token;
+export const handleCallback = async (code: string, state: string): Promise<string> => {
+  try {
+    console.log('Handling callback with:', {
+      url: `${API_BASE_URL}/auth/callback`,
+      code,
+      state,
+    });
+    const response = await axiosInstance.get('/auth/callback', {
+      params: { code, state }
+    });
+    console.log('Callback response:', response.data);
+    return response.data.access_token;
+  } catch (error: any) {
+    console.error('Error handling callback:', {
+      message: error.message,
+      response: error.response?.data,
+      baseURL: API_BASE_URL,
+    });
+    throw error;
+  }
+};
+
+export const initializeGoogleApi = async (token: string) => {
+  if (!token) {
+    throw new Error('No token provided');
+  }
+  localStorage.setItem('accessToken', token);
 };
 
 export const fetchCalendarList = async () => {
+  const token = localStorage.getItem('accessToken');
+  if (!token) throw new Error('Not authenticated');
+
   try {
-    const token = getAccessToken();
-    console.log('Fetching calendar list...'); // Debug log
-
-    const response = await axios({
-      method: 'get',
-      url: 'https://www.googleapis.com/calendar/v3/users/me/calendarList',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
-      validateStatus: (status) => {
-        return status < 500; // Resolve only if the status code is less than 500
-      }
+    const response = await axiosInstance.get('/calendars', {
+      params: { token },
     });
-
-    if (response.status === 401) {
-      console.error('401 Unauthorized - Full response:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data,
-        headers: response.headers,
-      });
-      localStorage.removeItem('googleToken');
-      throw new Error('Authentication expired');
-    }
-
-    if (!response.data) {
-      throw new Error('No data received from Google Calendar API');
-    }
     
-    console.log('Calendar response:', response.data);
     return response.data;
   } catch (error: any) {
-    console.error('Detailed error:', {
+    console.error('Error fetching calendars:', {
       message: error.message,
       response: error.response?.data,
-      status: error.response?.status,
-      headers: error.response?.headers,
+      baseURL: API_BASE_URL,
     });
     throw error;
   }
 };
 
 export const fetchEvents = async (calendarId: string, timeMin: string, timeMax: string) => {
+  const token = localStorage.getItem('accessToken');
+  if (!token) throw new Error('Not authenticated');
+
   try {
-    const token = getAccessToken();
-
-    const response = await axios({
-      method: 'get',
-      url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
+    const response = await axiosInstance.get(`/calendars/${calendarId}/events`, {
       params: {
-        timeMin,
-        timeMax,
-        singleEvents: true,
-        orderBy: 'startTime',
+        token,
+        year: new Date(timeMin).getFullYear(),
       },
-      validateStatus: (status) => {
-        return status < 500; // Resolve only if the status code is less than 500
-      }
     });
-
-    if (response.status === 401) {
-      console.error('401 Unauthorized - Full response:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data,
-        headers: response.headers,
-      });
-      localStorage.removeItem('googleToken');
-      throw new Error('Authentication expired');
-    }
-
-    if (!response.data) {
-      throw new Error('No data received from Google Calendar API');
-    }
 
     return response.data;
   } catch (error: any) {
-    console.error('Detailed error:', {
+    console.error('Error fetching events:', {
       message: error.message,
       response: error.response?.data,
-      status: error.response?.status,
-      headers: error.response?.headers,
+      baseURL: API_BASE_URL,
     });
     throw error;
   }

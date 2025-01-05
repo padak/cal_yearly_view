@@ -10,16 +10,17 @@ settings = get_settings()
 
 def create_oauth_flow() -> Flow:
     """Create OAuth 2.0 flow instance to manage the OAuth 2.0 Authorization Grant Flow."""
+    client_config = {
+        "web": {
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
+            "auth_uri": settings.GOOGLE_AUTH_URL,
+            "token_uri": settings.GOOGLE_TOKEN_URL,
+            "redirect_uris": [settings.GOOGLE_REDIRECT_URI],
+        }
+    }
     flow = Flow.from_client_config(
-        {
-            "web": {
-                "client_id": settings.GOOGLE_CLIENT_ID,
-                "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [settings.GOOGLE_REDIRECT_URI],
-            }
-        },
+        client_config,
         scopes=settings.GOOGLE_AUTH_SCOPES,
     )
     flow.redirect_uri = settings.GOOGLE_REDIRECT_URI
@@ -31,7 +32,7 @@ def get_calendar_service(credentials: Dict[str, Any]):
     creds = Credentials(
         token=credentials.get("token"),
         refresh_token=credentials.get("refresh_token"),
-        token_uri="https://oauth2.googleapis.com/token",
+        token_uri=settings.GOOGLE_TOKEN_URL,
         client_id=settings.GOOGLE_CLIENT_ID,
         client_secret=settings.GOOGLE_CLIENT_SECRET,
         scopes=settings.GOOGLE_AUTH_SCOPES,
