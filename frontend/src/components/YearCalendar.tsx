@@ -522,16 +522,15 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
       const newCollisionDetails: CollisionDetails = {};
       
       Object.entries(holidayDates).forEach(([country, dates]) => {
-        if (isLoading[country]) {
-          if (collisions[country]) {
-            newCollisions[country] = collisions[country];
-            newCollisionDetails[country] = collisionDetails[country];
-          }
+        const calendar = holidayCalendars.find(cal => cal.name === country);
+        
+        // Skip if calendar is not enabled
+        if (!calendar?.enabled) {
           return;
         }
 
-        const calendar = holidayCalendars.find(cal => cal.name === country);
-        if (!calendar?.enabled) {
+        // Skip if calendar is still loading
+        if (isLoading[country]) {
           return;
         }
 
@@ -565,7 +564,7 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
           };
         }
       });
-      
+
       setCollisions(newCollisions);
       setCollisionDetails(newCollisionDetails);
     };
@@ -611,7 +610,11 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
   };
 
   const isHolidayDate = (dateStr: string): boolean => {
-    return Object.values(holidayDates).some(dates => dates.has(dateStr));
+    // Only check enabled calendars
+    const enabledCalendars = holidayCalendars.filter(cal => cal.enabled).map(cal => cal.name);
+    return Object.entries(holidayDates)
+      .filter(([country]) => enabledCalendars.includes(country))
+      .some(([_, dates]) => dates.has(dateStr));
   };
 
   const getHolidayNames = (dateStr: string): string[] => {
