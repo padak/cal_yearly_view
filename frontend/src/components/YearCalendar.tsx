@@ -301,6 +301,17 @@ const HolidayToggleItem = styled.div`
   }
 `;
 
+const HolidayCount = styled.span`
+  background-color: #e0e0e0;
+  color: #666;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 0.8em;
+  min-width: 20px;
+  text-align: center;
+  margin-right: 8px;
+`;
+
 const CollisionCount = styled.span`
   background-color: #ef5350;
   color: white;
@@ -392,6 +403,7 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
   ]);
   const [collisions, setCollisions] = useState<{ [country: string]: number }>({});
   const [collisionDetails, setCollisionDetails] = useState<CollisionDetails>({});
+  const [holidayWorkdayCounts, setHolidayWorkdayCounts] = useState<{ [country: string]: number }>({});
 
   useEffect(() => {
     const loadEvents = async () => {
@@ -498,6 +510,28 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
 
     calculateCollisions();
   }, [events, holidayDates, holidayEvents]);
+
+  useEffect(() => {
+    const calculateHolidayWorkdays = () => {
+      const newHolidayWorkdayCounts: { [country: string]: number } = {};
+      
+      Object.entries(holidayDates).forEach(([country, dates]) => {
+        let workdayCount = 0;
+        dates.forEach(date => {
+          const dayOfWeek = new Date(date).getDay();
+          // Only count if it's not a weekend (0 = Sunday, 6 = Saturday)
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            workdayCount++;
+          }
+        });
+        newHolidayWorkdayCounts[country] = workdayCount;
+      });
+      
+      setHolidayWorkdayCounts(newHolidayWorkdayCounts);
+    };
+
+    calculateHolidayWorkdays();
+  }, [holidayDates]);
 
   const toggleHolidayCalendar = (calendarId: string) => {
     setHolidayCalendars(prevCalendars =>
@@ -731,20 +765,27 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
               <label htmlFor={calendar.id}>
                 {calendar.flag} Show {calendar.name} Holidays
               </label>
-              {collisions[calendar.name] > 0 && calendar.enabled && (
-                <CollisionCount>
-                  {collisions[calendar.name]}
-                  <CollisionTooltip className="collision-details">
-                    <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                      Collisions with events:
-                    </div>
-                    {collisionDetails[calendar.name]?.events.map((collision, index) => (
-                      <div key={index}>
-                        {formatCollisionDate(collision.date, collision.holiday, collision.eventCount)}
-                      </div>
-                    ))}
-                  </CollisionTooltip>
-                </CollisionCount>
+              {calendar.enabled && (
+                <>
+                  <HolidayCount>
+                    {holidayWorkdayCounts[calendar.name] || 0} workday holidays
+                  </HolidayCount>
+                  {collisions[calendar.name] > 0 && (
+                    <CollisionCount>
+                      {collisions[calendar.name]}
+                      <CollisionTooltip className="collision-details">
+                        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                          Collisions with events:
+                        </div>
+                        {collisionDetails[calendar.name]?.events.map((collision, index) => (
+                          <div key={index}>
+                            {formatCollisionDate(collision.date, collision.holiday, collision.eventCount)}
+                          </div>
+                        ))}
+                      </CollisionTooltip>
+                    </CollisionCount>
+                  )}
+                </>
               )}
             </HolidayToggleItem>
           ))}
