@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { format } from 'date-fns';
 import YearCalendar from './components/YearCalendar';
-import CalendarSelector from './components/CalendarSelector';
-import { getAuthUrl, handleCallback, initializeGoogleApi, fetchCalendarList } from './services/googleCalendar';
+import { getAuthUrl, handleCallback, initializeGoogleApi } from './services/googleCalendar';
 
 const AppContainer = styled.div`
   max-width: 1200px;
@@ -45,11 +43,27 @@ const LoginButton = styled.button`
   }
 `;
 
+const ButtonGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+`;
+
+const RefreshButton = styled(LoginButton)`
+  background-color: #66bb6a;
+  
+  &:hover {
+    background-color: #4caf50;
+  }
+`;
+
 function App() {
   const [isSignedIn, setIsSignedIn] = useState(false);
-  const [calendars, setCalendars] = useState<gapi.client.calendar.CalendarListEntry[]>([]);
-  const [selectedCalendar, setSelectedCalendar] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [key, setKey] = useState(0);
+  const currentYear = new Date().getFullYear();
+  const companyCalendarId = 'c_ba5823068ccdac7f2c41a7879a126e2ffaf181ac78411eb2446fb577e1982860@group.calendar.google.com';
 
   useEffect(() => {
     const handleAuthentication = async () => {
@@ -73,7 +87,7 @@ function App() {
           console.log('Checking stored token');
           const storedToken = localStorage.getItem('accessToken');
           if (storedToken) {
-            setIsSignedIn(true);
+            await handleLoginSuccess(storedToken);
           }
         }
         // Clean up URL regardless of the path taken
@@ -87,33 +101,6 @@ function App() {
 
     handleAuthentication();
   }, []);
-
-  useEffect(() => {
-    if (isSignedIn) {
-      loadCalendars();
-    }
-  }, [isSignedIn]);
-
-  const loadCalendars = async () => {
-    try {
-      setError(null);
-      const calendarList = await fetchCalendarList();
-      if (calendarList && calendarList.length > 0) {
-        setCalendars(calendarList);
-      } else {
-        setError('No calendars found. Make sure you have access to Google Calendar.');
-      }
-    } catch (error: any) {
-      console.error('Error loading calendars:', error);
-      if (error.response?.status === 401) {
-        handleLogout();
-        setError('Authentication expired. Please sign in again.');
-      } else {
-        const errorMessage = error.response?.data?.error?.message || 'Failed to load calendars. Please check your permissions and try again.';
-        setError(errorMessage);
-      }
-    }
-  };
 
   const handleLoginSuccess = async (token: string) => {
     try {
@@ -139,18 +126,25 @@ function App() {
 
   const handleLogout = () => {
     setIsSignedIn(false);
-    setCalendars([]);
-    setSelectedCalendar(null);
     setError(null);
     localStorage.removeItem('accessToken');
+  };
+
+  const handleRefresh = () => {
+    setKey(prevKey => prevKey + 1);
   };
 
   return (
     <AppContainer>
       <Header>
-        <Title>Year Calendar View</Title>
+        <Title>Keboola Company Calendar - Year View</Title>
         {isSignedIn ? (
-          <button onClick={handleLogout}>Sign Out</button>
+          <ButtonGroup>
+            <LoginButton onClick={handleLogout}>Sign Out</LoginButton>
+            <RefreshButton onClick={handleRefresh}>
+              Refresh Calendar
+            </RefreshButton>
+          </ButtonGroup>
         ) : (
           <LoginButton onClick={handleLogin}>
             Sign in with Google
@@ -161,19 +155,11 @@ function App() {
       {error && <ErrorMessage>{error}</ErrorMessage>}
 
       {isSignedIn && (
-        <>
-          <CalendarSelector
-            calendars={calendars}
-            selectedCalendar={selectedCalendar}
-            onSelectCalendar={setSelectedCalendar}
-          />
-          {selectedCalendar && (
-            <YearCalendar
-              calendarId={selectedCalendar}
-              year={new Date().getFullYear()}
-            />
-          )}
-        </>
+        <YearCalendar 
+          key={key}
+          calendarId={companyCalendarId} 
+          year={currentYear} 
+        />
       )}
     </AppContainer>
   );
