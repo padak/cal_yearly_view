@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
+# Install the package in editable mode
+RUN pip install -e .
+
 # Expose the port the app runs on
 EXPOSE 8000
 
