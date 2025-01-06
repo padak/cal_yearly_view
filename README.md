@@ -2,6 +2,8 @@
 
 A full-stack application that displays a yearly view of your Google Calendar events, built with Python FastAPI backend and React frontend.
 
+![Year Calendar Preview](yearly_cal_preview.png)
+
 ## Features
 
 - Google OAuth2 authentication
