@@ -1,22 +1,47 @@
+version: '3.8'
+
 services:
   backend:
     build: ./backend
     container_name: calendar-backend
     env_file:
       - ./backend/.env
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     volumes:
       - ./backend:/app
     restart: unless-stopped
+    networks:
+      - app-network
 
   frontend:
     build: ./frontend
     container_name: calendar-frontend
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000/api/v1
+      - VITE_API_BASE_URL=https://34-27-141-15.nip.io/api/v1
     ports:
-      - "5173:80"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./frontend:/app
+      - ./certbot/conf:/etc/nginx/ssl
+      - ./certbot/data:/var/www/certbot
     depends_on:
       - backend
-    restart: unless-stopped 
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/data:/var/www/certbot
+    command: certonly --webroot --webroot-path=/var/www/certbot --email petr@keboola.com --agree-tos --no-eff-email -d 34-27-141-15.nip.io --force-renewal
+    depends_on:
+      - frontend
+
+networks:
+  app-network:
+    driver: bridge 

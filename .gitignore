@@ -63,3 +63,7 @@ venv.bak/
 .docker/
 docker-compose.override.yml
 *.env.prod
+
+# SSL certificates and certbot files
+certbot/conf/
+certbot/data/
