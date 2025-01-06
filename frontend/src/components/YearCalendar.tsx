@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday } from 'date-fns';
 import { fetchEvents } from '../services/googleCalendar';
 
 const CalendarContainer = styled.div`
@@ -61,6 +61,7 @@ const DaysGrid = styled.div`
 interface DayProps {
   $isCurrentMonth: boolean;
   $eventType: 'townhall' | 'planning' | 'ama' | 'other' | 'none';
+  $isToday: boolean;
 }
 
 const Day = styled.div<DayProps>`
@@ -71,6 +72,9 @@ const Day = styled.div<DayProps>`
   font-size: 0.9em;
   color: ${props => props.$isCurrentMonth ? '#333' : '#ccc'};
   background-color: ${props => {
+    if (props.$isToday) {
+      return '#ffeb3b'; // Bright yellow for today
+    }
     switch (props.$eventType) {
       case 'townhall':
         return '#fff9c4'; // Light yellow
@@ -87,9 +91,16 @@ const Day = styled.div<DayProps>`
   border-radius: 4px;
   cursor: ${props => props.$eventType !== 'none' ? 'pointer' : 'default'};
   position: relative;
+  ${props => props.$isToday && `
+    border: 2px solid #ffc107;
+    font-weight: bold;
+  `}
 
   &:hover {
     background-color: ${props => {
+      if (props.$isToday) {
+        return '#ffd740'; // Darker yellow for today hover
+      }
       switch (props.$eventType) {
         case 'townhall':
           return '#fff176'; // Darker yellow
@@ -335,7 +346,7 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
         <DaysGrid>
           {[...paddingDays, ...days, ...endPaddingDays].map((day, index) => {
             if (!day) {
-              return <Day key={index} $isCurrentMonth={false} $eventType="none" />;
+              return <Day key={index} $isCurrentMonth={false} $eventType="none" $isToday={false} />;
             }
             const dateStr = format(day, 'yyyy-MM-dd');
             const dateEvents = events[dateStr] || [];
@@ -346,6 +357,7 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
                 key={dateStr}
                 $isCurrentMonth={isSameMonth(day, monthStart)}
                 $eventType={eventType}
+                $isToday={isToday(day)}
                 onClick={() => eventType !== 'none' && setSelectedDate(dateStr)}
               >
                 {format(day, 'd')}
