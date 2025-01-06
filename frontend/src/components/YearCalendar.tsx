@@ -301,6 +301,13 @@ const HolidayToggleItem = styled.div`
   }
 `;
 
+const SelectAllItem = styled(HolidayToggleItem)`
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  font-weight: bold;
+`;
+
 const HolidayCount = styled.span`
   background-color: #e0e0e0;
   color: #666;
@@ -350,7 +357,12 @@ const CollisionTooltip = styled.div`
 interface CollisionDetails {
   [country: string]: {
     dates: string[];
-    events: { date: string; holiday: string; eventCount: number }[];
+    events: { 
+      date: string; 
+      holiday: string; 
+      eventCount: number;
+      companyEvents: CalendarEvent[];
+    }[];
   };
 }
 
@@ -395,7 +407,7 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
   const [holidayDates, setHolidayDates] = useState<{ [country: string]: Set<string> }>({});
   const [holidayEvents, setHolidayEvents] = useState<{ [date: string]: (CalendarEvent & { calendarId: string })[] }>({});
   const [holidayCalendars, setHolidayCalendars] = useState<HolidayCalendar[]>([
-    { id: 'en.uk%23holiday@group.v.calendar.google.com', name: 'UK', code: 'UK', flag: '🇬🇧', enabled: true },
+    { id: 'en.uk%23holiday@group.v.calendar.google.com', name: 'UK', code: 'UK', flag: '🇬🇧', enabled: false },
     { id: 'cs.czech%23holiday@group.v.calendar.google.com', name: 'Czech Republic', code: 'CZ', flag: '🇨🇿', enabled: false },
     { id: 'sk.slovak%23holiday@group.v.calendar.google.com', name: 'Slovakia', code: 'SK', flag: '🇸🇰', enabled: false },
     { id: 'en.usa%23holiday@group.v.calendar.google.com', name: 'USA', code: 'US', flag: '🇺🇸', enabled: false },
@@ -404,6 +416,7 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
   const [collisions, setCollisions] = useState<{ [country: string]: number }>({});
   const [collisionDetails, setCollisionDetails] = useState<CollisionDetails>({});
   const [holidayWorkdayCounts, setHolidayWorkdayCounts] = useState<{ [country: string]: number }>({});
+  const [isLoading, setIsLoading] = useState<{ [country: string]: boolean }>({});
 
   useEffect(() => {
     const loadEvents = async () => {
@@ -418,26 +431,63 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
         const newHolidayDates: { [country: string]: Set<string> } = {};
         const newHolidayEvents: { [date: string]: (CalendarEvent & { calendarId: string })[] } = {};
         
+        // Process each enabled calendar sequentially
         for (const calendar of holidayCalendars.filter(cal => cal.enabled)) {
-          const holidaysList = await fetchEvents(calendar.id, timeMin, timeMax);
-          
-          if (Array.isArray(holidaysList)) {
-            newHolidayDates[calendar.name] = new Set<string>();
-            holidaysList.forEach(event => {
-              const date = event.start.date || event.start.dateTime?.split('T')[0];
-              if (date) {
-                newHolidayDates[calendar.name].add(date);
+          if (!holidayDates[calendar.name]) { // Only fetch if we don't have the data
+            setIsLoading(prev => ({ ...prev, [calendar.name]: true }));
+            const holidaysList = await fetchEvents(calendar.id, timeMin, timeMax);
+            
+            if (Array.isArray(holidaysList)) {
+              newHolidayDates[calendar.name] = new Set<string>();
+              holidaysList.forEach(event => {
+                const date = event.start.date || event.start.dateTime?.split('T')[0];
+                if (date) {
+                  newHolidayDates[calendar.name].add(date);
+                  if (!newHolidayEvents[date]) {
+                    newHolidayEvents[date] = [];
+                  }
+                  newHolidayEvents[date].push({ ...event, calendarId: calendar.id });
+                }
+              });
+            }
+            setIsLoading(prev => ({ ...prev, [calendar.name]: false }));
+          } else {
+            // Keep existing data for already loaded calendars
+            newHolidayDates[calendar.name] = holidayDates[calendar.name];
+            // Copy existing holiday events for this calendar
+            Object.entries(holidayEvents).forEach(([date, events]) => {
+              const calendarEvents = events.filter(e => getCountryFromCalendarId(e.calendarId)?.name === calendar.name);
+              if (calendarEvents.length > 0) {
                 if (!newHolidayEvents[date]) {
                   newHolidayEvents[date] = [];
                 }
-                newHolidayEvents[date].push({ ...event, calendarId: calendar.id });
+                newHolidayEvents[date].push(...calendarEvents);
               }
             });
           }
         }
         
-        setHolidayDates(newHolidayDates);
-        setHolidayEvents(newHolidayEvents);
+        setHolidayDates(prev => ({
+          ...newHolidayDates,
+          // Keep data for disabled calendars
+          ...Object.fromEntries(
+            Object.entries(prev).filter(([country]) => !holidayCalendars.find(cal => cal.enabled && cal.name === country))
+          )
+        }));
+        
+        // Only keep holiday events for enabled calendars
+        const enabledCalendars = new Set(holidayCalendars.filter(cal => cal.enabled).map(cal => cal.name));
+        const filteredHolidayEvents = Object.fromEntries(
+          Object.entries(newHolidayEvents).map(([date, events]) => [
+            date,
+            events.filter(event => {
+              const country = getCountryFromCalendarId(event.calendarId)?.name;
+              return country && enabledCalendars.has(country);
+            })
+          ]).filter(([_, events]) => events.length > 0)
+        );
+        
+        setHolidayEvents(filteredHolidayEvents);
 
         if (!Array.isArray(eventsList)) {
           console.error('Events list is not an array:', eventsList);
@@ -459,6 +509,7 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
         setEvents(eventsByDate);
       } catch (error) {
         console.error('Error loading events:', error);
+        setIsLoading({});
       }
     };
 
@@ -470,14 +521,27 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
       const newCollisions: { [country: string]: number } = {};
       const newCollisionDetails: CollisionDetails = {};
       
-      // Calculate collisions for each country's holidays
       Object.entries(holidayDates).forEach(([country, dates]) => {
+        if (isLoading[country]) {
+          if (collisions[country]) {
+            newCollisions[country] = collisions[country];
+            newCollisionDetails[country] = collisionDetails[country];
+          }
+          return;
+        }
+
+        const calendar = holidayCalendars.find(cal => cal.name === country);
+        if (!calendar?.enabled) {
+          return;
+        }
+
         let collisionCount = 0;
-        const countryCollisions: { date: string; holiday: string; eventCount: number }[] = [];
+        const countryCollisions: { date: string; holiday: string; eventCount: number; companyEvents: CalendarEvent[] }[] = [];
         const collisionDates: string[] = [];
         
         dates.forEach(date => {
-          const eventCount = events[date]?.length || 0;
+          const dateEvents = events[date] || [];
+          const eventCount = dateEvents.length;
           if (eventCount > 0) {
             collisionCount++;
             collisionDates.push(date);
@@ -486,7 +550,8 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
               countryCollisions.push({
                 date,
                 holiday: holiday.summary,
-                eventCount
+                eventCount,
+                companyEvents: dateEvents
               });
             }
           }
@@ -496,20 +561,17 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
           newCollisions[country] = collisionCount;
           newCollisionDetails[country] = {
             dates: collisionDates,
-            events: countryCollisions
+            events: countryCollisions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
           };
         }
       });
       
       setCollisions(newCollisions);
-      setCollisionDetails(collisionDetails => ({
-        ...collisionDetails,
-        ...newCollisionDetails
-      }));
+      setCollisionDetails(newCollisionDetails);
     };
 
     calculateCollisions();
-  }, [events, holidayDates, holidayEvents]);
+  }, [events, holidayDates, holidayEvents, isLoading, holidayCalendars]);
 
   useEffect(() => {
     const calculateHolidayWorkdays = () => {
@@ -534,6 +596,13 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
   }, [holidayDates]);
 
   const toggleHolidayCalendar = (calendarId: string) => {
+    const calendar = holidayCalendars.find(cal => cal.id === calendarId);
+    if (calendar) {
+      const willBeEnabled = !holidayCalendars.find(cal => cal.id === calendarId)?.enabled;
+      if (willBeEnabled && !holidayDates[calendar.name]) {
+        setIsLoading(prev => ({ ...prev, [calendar.name]: true }));
+      }
+    }
     setHolidayCalendars(prevCalendars =>
       prevCalendars.map(cal =>
         cal.id === calendarId ? { ...cal, enabled: !cal.enabled } : cal
@@ -738,8 +807,26 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
     );
   };
 
-  const formatCollisionDate = (date: string, holiday: string, eventCount: number) => {
-    return `${format(new Date(date), 'MMM d')} - ${holiday} (${eventCount} event${eventCount > 1 ? 's' : ''})`;
+  const formatCollisionDate = (date: string, holiday: string, eventCount: number, companyEvents: CalendarEvent[]) => {
+    const formattedDate = format(new Date(date), 'MMM d');
+    const eventsList = companyEvents.map(event => event.summary).join(', ');
+    return (
+      <div>
+        <div><strong>{formattedDate}</strong> - {holiday}</div>
+        <div style={{ marginLeft: '12px', color: '#666', fontSize: '0.9em' }}>
+          Colliding with: {eventsList}
+        </div>
+      </div>
+    );
+  };
+
+  const toggleAllHolidayCalendars = () => {
+    const areAllEnabled = holidayCalendars.every(cal => cal.enabled);
+    const newCalendars = holidayCalendars.map(cal => ({
+      ...cal,
+      enabled: !areAllEnabled
+    }));
+    setHolidayCalendars(newCalendars);
   };
 
   return (
@@ -754,6 +841,17 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
           ))}
         </LegendColors>
         <HolidayToggles>
+          <SelectAllItem>
+            <input
+              type="checkbox"
+              id="select-all-holidays"
+              checked={holidayCalendars.every(cal => cal.enabled)}
+              onChange={toggleAllHolidayCalendars}
+            />
+            <label htmlFor="select-all-holidays">
+              Select All Holiday Calendars
+            </label>
+          </SelectAllItem>
           {holidayCalendars.map(calendar => (
             <HolidayToggleItem key={calendar.id}>
               <input
@@ -768,18 +866,23 @@ function YearCalendar({ calendarId, year }: YearCalendarProps) {
               {calendar.enabled && (
                 <>
                   <HolidayCount>
-                    {holidayWorkdayCounts[calendar.name] || 0} workday holidays
+                    {isLoading[calendar.name] ? 'Loading...' : `${holidayWorkdayCounts[calendar.name] || 0} workday holidays`}
                   </HolidayCount>
                   {collisions[calendar.name] > 0 && (
                     <CollisionCount>
                       {collisions[calendar.name]}
                       <CollisionTooltip className="collision-details">
-                        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                          Collisions with events:
+                        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                          Collisions with company events:
                         </div>
                         {collisionDetails[calendar.name]?.events.map((collision, index) => (
-                          <div key={index}>
-                            {formatCollisionDate(collision.date, collision.holiday, collision.eventCount)}
+                          <div key={index} style={{ marginBottom: '8px' }}>
+                            {formatCollisionDate(
+                              collision.date,
+                              collision.holiday,
+                              collision.eventCount,
+                              collision.companyEvents
+                            )}
                           </div>
                         ))}
                       </CollisionTooltip>
